@@ -1,0 +1,65 @@
+---------------------------------
+
+GRB Simulation Parameters
+
+---------------------------------
+
+All energies are in keV
+
+All times are in seconds
+
+Effective area of the detector
+
+area = 100.0                # in cm^2
+
+--- Band Function Parameters ---
+
+alpha = -0.64                # Low-energy photon index
+beta = -2.63                 # High-energy photon index
+E0 = 100.0                  # Reference energy for Band function (keV)
+F0 = 1.0                    # Flux at E0 in photons / (cm^2 * s * keV)
+E_peak = 3038                # Peak energy of the nuFnu spectrum (keV)
+
+--- NEW: High-Energy Power-Law Component ---
+
+N(E) = K_pl * (E / E_pivot)^(-gamma) * exp(-E / E_cut)
+
+K_pl = 5.8e-10                # Normalization of the PL component at E_pivot
+E_pivot = 1000000.0          # 100 MeV (in keV)
+gamma = 1.7                 # Photon index (note: model uses -gamma)
+E_cut = 1400000.0           # 1 GeV (in keV)
+
+--- Time Parameters ---
+
+t_start = 0.0
+t_end = 2
+n_time_points = 200        # Number of bins for light curve generation
+
+--- Energy Bands ---
+
+List of (E_min, E_max) tuples in keV
+
+energy_bands = [(8, 63), (63, 500), (500, 3970), (3970, 31260), (31620, 251000), (251000, 1000000)]
+
+--- Light Curve Shape ---
+
+t_peak_min = 0.7
+t_peak_max = 0.75
+rise_index = 25
+decay_index = -0.2
+
+--- Background Model ---
+
+Model: rate = norm * (avg_energy)^index
+
+background = {'type': 'powerlaw','norm': 10,'index': -1.0}
+
+# Prepínač pre generovanie "noiseless" dát
+# True = generuje očakávané hodnoty (desatinné čísla)
+# False = spúšťa plnú Poissonovskú simuláciu (celé čísla)
+generate_noiseless = False
+
+# Prepínač na zahrnutie pozadia
+# Ak je generate_noiseless = True, toto pridá hladké pozadie
+# Ak je generate_noiseless = False, toto pridá Poissonovský šum pozadia
+include_background = True

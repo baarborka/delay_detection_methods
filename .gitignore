@@ -1,0 +1,21 @@
+# Ignore settings from your code editor
+.idea/
+.vscode/
+
+# Ignore large Monte Carlo data and results
+monte_carlo_results_*/
+*.csv
+
+# Ignore folders containing graphs/figures 
+# (These should go to OSF, not Git)
+grafy*/
+
+# Ignore temporary text files
+latest_folder.txt
+
+# Ignore "Unused" folder to keep the repo clean
+nepouzivane kody/
+
+grb_simulation_with_background/
+
+prehlad/

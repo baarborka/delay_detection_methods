@@ -1,0 +1,137 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pathlib import Path
+import time
+import shutil
+import scipy.stats as stats
+
+# ---------------------------
+# Krok 0: Nájdenie najnovšieho priečinka so simuláciou
+# ---------------------------
+# DÔLEŽITÉ: Uistite sa, že tento názov sa zhoduje s názvom v simulačnom skripte
+base_name = 'grb_simulation_with_background'
+output_base = Path(base_name)
+
+if not output_base.exists():
+    raise FileNotFoundError(f"Základný priečinok '{base_name}' nebol nájdený. Spustite najprv simuláciu.")
+
+# Nájdi všetky podpriečinky a vyber ten s najvyšším číslom
+existing_folders = [d for d in output_base.iterdir() if d.is_dir() and d.name.split('_')[-1].isdigit()]
+if not existing_folders:
+    raise FileNotFoundError(f"V priečinku '{base_name}' neboli nájdené žiadne priečinky s výsledkami.")
+
+latest_folder = max(existing_folders, key=lambda d: int(d.name.split('_')[-1]))
+csv_filename = latest_folder / 'photon_counts_over_time.csv'
+
+if not csv_filename.exists():
+    raise FileNotFoundError(f"CSV súbor nebol nájdený v: {csv_filename}")
+
+print("Načítavam CSV súbor z najnovšieho behu:", csv_filename)
+output_folder = latest_folder # Nastavíme output_folder pre ukladanie výsledkov
+
+# ---------------------------
+# Krok 1: Načítanie simulovaných dát
+# ---------------------------
+df = pd.read_csv(csv_filename)
+print("\nNáhľad dát:")
+print(df.head())
+
+# ... zvyšok vášho kódu zostáva úplne rovnaký ...
+# (kód pre výpočet korelácie, ukladanie tabuliek a generovanie grafov)
+
+# ---------------------------
+# Step 2: Extract Time and Channel Data
+# ---------------------------
+time_vals = df['Time (s)'].values
+
+channel_names = [col for col in df.columns if col != 'Time (s)']
+channel_names_sorted = sorted(channel_names, key=lambda x: float(x))
+print("\nKanály (zoradené podľa energie):", channel_names_sorted)
+
+ref_channel_name = channel_names_sorted[0]
+ref_channel = df[ref_channel_name].values
+mean_ref = np.mean(ref_channel)
+
+# ---------------------------
+# Step 3: Loop Through Other Channels and Calculate Correlations
+# ---------------------------
+max_lag = 4
+correlations_by_lag = {lag: [] for lag in range(1, max_lag + 1)}
+channel_energies = []
+errors_by_channel = {}
+errors_by_channel[ref_channel_name] = np.zeros_like(ref_channel)
+
+for ch_name in channel_names_sorted[1:]:
+    current_channel = df[ch_name].values
+    mean_current = np.mean(current_channel)
+    predicted_current = ref_channel * (mean_current / mean_ref)
+    error = predicted_current - current_channel
+    errors_by_channel[ch_name] = error
+    variance = np.mean(error * error)
+    if variance == 0: variance = 1 # Aby sa predišlo deleniu nulou
+
+    for lag in range(1, max_lag + 1):
+        corr_vector = error[:-lag] * error[lag:]
+        mean_corr = np.mean(corr_vector)
+        corr_normalized = mean_corr / variance
+        correlations_by_lag[lag].append(corr_normalized)
+
+    channel_energies.append(float(ch_name))
+
+# ---------------------------
+# Step 4: Save the Error Values Table
+# ---------------------------
+errors_df = pd.DataFrame({"Time (s)": time_vals})
+for ch in channel_names_sorted:
+    errors_df[ch] = errors_by_channel[ch]
+
+errors_table_filename = output_folder / 'error_values_table.csv'
+errors_df.to_csv(errors_table_filename, index=False)
+print(f"\nUložená tabuľka chýb: {errors_table_filename}")
+
+# ---------------------------
+# Step 5: Save the Correlation and Energy Table
+# ---------------------------
+table_data = {"Energy": channel_energies}
+for lag in range(1, max_lag + 1):
+    table_data[f"Lag {lag}"] = correlations_by_lag[lag]
+
+results_df = pd.DataFrame(table_data)
+table_filename = output_folder / 'error_correlation_table.csv'
+results_df.to_csv(table_filename, index=False)
+print(f"Uložená korelačná tabuľka: {table_filename}")
+
+# ... (všetky ďalšie kroky na ukladanie a plotovanie zostávajú rovnaké)
+# ---------------------------
+# Step 6: Plot the Normalized Correlations vs. Channel Energy
+# ---------------------------
+common_graphs_folder = output_folder.parent / "graphs"
+common_graphs_folder.mkdir(parents=True, exist_ok=True)
+error_corr_folder = common_graphs_folder / "error_correlation_vs_energy"
+error_corr_folder.mkdir(parents=True, exist_ok=True)
+
+run_id = output_folder.name
+timestamp = int(time.time() * 1000)
+plot_common_filename = f'error_correlation_vs_energy_{run_id}_{timestamp}.png'
+plot_run_filename = f'error_correlation_vs_energy.png' # Jednoduchší názov pre priečinok behu
+plot_common_path = error_corr_folder / plot_common_filename
+plot_run_path = output_folder / plot_run_filename
+
+plt.figure(figsize=(10, 6))
+colors = ['indigo', 'darkviolet', 'hotpink', 'pink']
+for lag, color in zip(range(1, max_lag + 1), colors):
+    plt.semilogx(channel_energies, correlations_by_lag[lag], marker='D', linestyle='-', label=f'Lag {lag}', color=color)
+plt.xlabel('Channel Energy (keV)')
+plt.ylabel('Normalized Correlation (r)')
+plt.title('Normalized Error Correlation vs. Energy\n(Reference: first channel)')
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.ylim(-1, 1)
+plt.grid(True)
+plt.tight_layout()
+
+plt.savefig(plot_common_path)
+shutil.copy(plot_common_path, plot_run_path)
+print(f"Uložený graf: {plot_run_path}")
+plt.close()
